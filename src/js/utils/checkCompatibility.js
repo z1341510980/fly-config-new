@@ -1,0 +1,140 @@
+// Detects OS using modern userAgentData API with fallback to legacy platform
+// Returns standardized OS name string or "unknown"
+export function getOS() {
+    const userAgent = globalThis.navigator?.userAgent ?? "";
+    const platform = globalThis.navigator?.userAgentData?.platform ?? globalThis.navigator?.platform ?? "";
+    const macosPlatforms = ["Macintosh", "MacIntel", "MacPPC", "Mac68K", "macOS"];
+    const windowsPlatforms = ["Win32", "Win64", "Windows", "WinCE"];
+    const iosPlatforms = ["iPhone", "iPad", "iPod"];
+
+    if (macosPlatforms.includes(platform)) {
+        return "MacOS";
+    }
+    if (iosPlatforms.includes(platform)) {
+        return "iOS";
+    }
+    if (windowsPlatforms.includes(platform)) {
+        return "Windows";
+    }
+    if (/Android/.test(userAgent)) {
+        return "Android";
+    }
+    if (/Linux/.test(platform)) {
+        return "Linux";
+    }
+    if (/CrOS/.test(platform)) {
+        return "ChromeOS";
+    }
+
+    return "unknown";
+}
+
+export function isChromiumBrowser() {
+    if (navigator.userAgentData?.brands) {
+        return navigator.userAgentData.brands.some((brand) => {
+            return brand.brand === "Chromium";
+        });
+    }
+
+    // Fallback for older browsers
+    const ua = navigator.userAgent.toLowerCase();
+    return ua.includes("chrom") || ua.includes("edg");
+}
+
+/**
+ * Detect whether the configurator is running in an embedded deployment where
+ * WebSocket is the only available transport (e.g. a WiFi bridge device).
+ *
+ * The host signals this by injecting a meta tag into the served HTML:
+ *   <meta name="bf-transport" content="websocket">
+ *
+ * When present, Serial/Bluetooth/USB and the Chromium browser gate are
+ * irrelevant — only WebSocket transport is needed.
+ */
+export function isEmbeddedDeployment() {
+    return document.querySelector('meta[name="bf-transport"]')?.content === "websocket";
+}
+
+export function checkCompatibility() {
+    if (isEmbeddedDeployment()) {
+        console.log("[COMPAT] Embedded deployment detected — skipping browser checks");
+        return true;
+    }
+
+    const hasSerialSupport = checkSerialSupport();
+    const hasBluetoothSupport = checkBluetoothSupport();
+    const hasUsbSupport = checkUsbSupport();
+    const isChromium = isChromiumBrowser();
+
+    // Check if running in a test environment
+    const isTestEnvironment =
+        typeof process !== "undefined" && (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== undefined);
+
+    const compatible = isTestEnvironment || (isChromium && (hasSerialSupport || hasBluetoothSupport || hasUsbSupport));
+
+    console.log("User Agent: ", navigator.userAgentData);
+    console.log("Chromium: ", isChromium);
+    console.log("Serial: ", hasSerialSupport);
+    console.log("Bluetooth: ", hasBluetoothSupport);
+    console.log("USB: ", hasUsbSupport);
+    console.log("OS: ", getOS());
+
+    if (compatible) {
+        return true;
+    }
+
+    let errorMessage = "";
+    if (!isChromium) {
+        errorMessage = "Betaflight app requires a Chromium based browser (Chrome, Chromium, Edge).<br/>";
+    }
+
+    if (!hasBluetoothSupport) {
+        errorMessage += "<br/>- Bluetooth API support is disabled.";
+    }
+
+    if (!hasSerialSupport) {
+        errorMessage += "<br/>- Serial API support is disabled.";
+    }
+
+    if (!hasUsbSupport) {
+        errorMessage += "<br/>- USB API support is disabled.";
+    }
+
+    const body = document.body;
+    body.innerHTML = "";
+    Object.assign(body.style, {
+        height: "100%",
+        display: "grid",
+        backgroundImage: "url(/images/pattern_dark.png)",
+        backgroundSize: "300px",
+        backgroundRepeat: "repeat",
+        backgroundColor: "var(--surface-500)",
+    });
+
+    const newDiv = document.createElement("div");
+    newDiv.innerHTML = errorMessage;
+    Object.assign(newDiv.style, {
+        fontSize: "16px",
+        backgroundColor: "var(--surface-200)",
+        color: "var(--text)",
+        padding: "1rem",
+        margin: "auto",
+        borderRadius: "0.75rem",
+        border: "2px solid var(--surface-500)",
+    });
+    body.appendChild(newDiv);
+
+    throw new Error("No compatible browser found.");
+}
+
+export function checkSerialSupport() {
+    return !!navigator.serial;
+}
+
+export function checkBluetoothSupport() {
+    return !!navigator.bluetooth;
+}
+
+export function checkUsbSupport() {
+    return !!navigator.usb;
+}
