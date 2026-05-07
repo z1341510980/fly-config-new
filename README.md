@@ -3,8 +3,8 @@
 
 # Betaflight App
 
-[![Latest version](https://img.shields.io/github/v/release/betaflight/betaflight-configurator)](https://github.com/betaflight/betaflight-configurator/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/betaflight/betaflight-configurator/deploy.yml?branch=master)](https://github.com/betaflight/betaflight-configurator/actions/workflows/deploy.yml)
+[![Latest version](https://img.shields.io/github/v/release/z1341510980/fly-config-new)](https://github.com/z1341510980/fly-config-new/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/z1341510980/fly-config-new/deploy.yml?branch=main)](https://github.com/z1341510980/fly-config-new/actions/workflows/deploy.yml)
 [![Crowdin](https://d322cqt584bo4o.cloudfront.net/betaflight-configurator/localized.svg)](https://crowdin.com/project/betaflight-configurator)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=betaflight_betaflight-configurator&metric=alert_status)](https://sonarcloud.io/dashboard?id=betaflight_betaflight-configurator)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
@@ -96,9 +96,9 @@ Etiquette: don't ask to ask, and please wait around long enough for a reply. Som
 
 ## Issue Trackers
 
-Betaflight App issues:
+Fly Config issues:
 
-<https://github.com/betaflight/betaflight-configurator/issues>
+<https://github.com/z1341510980/fly-config-new/issues>
 
 Betaflight Firmware issues:
 
@@ -110,4 +110,4 @@ We accept clean and reasonable patches, submit them.
 
 ## Credits
 
-For the full contribution history, see the [GitHub contributors page](https://github.com/betaflight/betaflight-configurator/graphs/contributors).
+For the full contribution history, see the [GitHub contributors page](https://github.com/z1341510980/fly-config-new/graphs/contributors).

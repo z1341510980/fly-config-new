@@ -26,7 +26,7 @@ const CONFIGURATOR = reactive({
     version: "0.0.1",
     gitRevision: "norevision",
     latestVersion: "0.0.1",
-    latestVersionReleaseUrl: "https://github.com/betaflight/betaflight-configurator/releases",
+    latestVersionReleaseUrl: "https://github.com/z1341510980/fly-config-new/releases",
 
     getDisplayVersion: function () {
         if (this.version.indexOf(this.gitRevision) === -1) {

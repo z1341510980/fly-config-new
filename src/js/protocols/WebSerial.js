@@ -52,6 +52,8 @@ class WebSerial extends EventTarget {
 
         this.ports = [];
         this.port = null;
+        this.portPaths = new WeakMap();
+        this.nextPortId = 1;
         this.reader = null;
         this.writer = null;
         this.reading = false;
@@ -97,7 +99,17 @@ class WebSerial extends EventTarget {
     }
 
     getConnectedPort() {
-        return this.port;
+        return this.connectionId;
+    }
+
+    createPortPath(port, portInfo) {
+        if (!this.portPaths.has(port)) {
+            const vendorId = portInfo.usbVendorId ?? "unknown";
+            const productId = portInfo.usbProductId ?? "unknown";
+            this.portPaths.set(port, `serial_${vendorId}_${productId}_${this.nextPortId++}`);
+        }
+
+        return this.portPaths.get(port);
     }
 
     createPort(port) {
@@ -106,7 +118,7 @@ class WebSerial extends EventTarget {
             ? vendorIdNames[portInfo.usbVendorId]
             : `VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId}`;
         return {
-            path: "serial",
+            path: this.createPortPath(port, portInfo),
             displayName: `Betaflight ${displayName}`,
             vendorId: portInfo.usbVendorId,
             productId: portInfo.usbProductId,

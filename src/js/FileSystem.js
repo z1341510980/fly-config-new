@@ -51,7 +51,7 @@ class FileSystem {
             ],
         });
 
-        const file = this._createFile(fileHandle[0]);
+        const file = this._createFile(fileHandle);
 
         if (await this.verifyPermission(file, false)) {
             return file;

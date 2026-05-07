@@ -216,7 +216,7 @@ PortHandler.selectActivePort = function (suggestedDevice = false) {
 
     // First check for active connections
     if (serial.connected) {
-        selectedPort = this.currentSerialPorts.find((device) => device === serial.getConnectedPort());
+        selectedPort = this.currentSerialPorts.find((device) => device.path === serial.getConnectedPort());
     }
 
     // Return the same that is connected to DFU

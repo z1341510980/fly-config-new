@@ -37,4 +37,11 @@ describe("homepage performance guards", () => {
         expect(plugin).not.toContain('app.component("HelpTab"');
         expect(plugin).not.toContain('app.component("LandingTab"');
     });
+
+    it("loads development debug tools through an optional module registry", () => {
+        const source = readSource("src/js/main.js");
+
+        expect(source).toContain('import.meta.glob("./msp/debug/msp_debug_tools.js")');
+        expect(source).not.toContain('import("./msp/debug/msp_debug_tools.js")');
+    });
 });

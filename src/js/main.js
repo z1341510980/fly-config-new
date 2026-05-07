@@ -15,16 +15,22 @@ import loginManager from "./LoginManager.js";
 import { enableDevelopmentOptions } from "./utils/developmentOptions.js";
 import { loadDeviceFilters } from "./protocols/devices.js";
 
+const debugToolModules = import.meta.glob("./msp/debug/msp_debug_tools.js");
+
 if (import.meta.env.DEV) {
-    import("./msp/debug/msp_debug_tools.js")
-        .then(() => {
-            console.log("🔧 MSP Debug Tools loaded for development environment");
-            console.log("• Press Ctrl+Shift+M to toggle debug dashboard");
-            console.log("• Use MSPTestRunner.help() for all commands");
-        })
-        .catch((err) => {
-            console.warn("Failed to load MSP debug tools:", err);
-        });
+    const loadDebugTools = debugToolModules["./msp/debug/msp_debug_tools.js"];
+
+    if (loadDebugTools) {
+        loadDebugTools()
+            .then(() => {
+                console.log("🔧 MSP Debug Tools loaded for development environment");
+                console.log("• Press Ctrl+Shift+M to toggle debug dashboard");
+                console.log("• Use MSPTestRunner.help() for all commands");
+            })
+            .catch((err) => {
+                console.warn("Failed to load MSP debug tools:", err);
+            });
+    }
 }
 
 document.addEventListener("DOMContentLoaded", function () {
