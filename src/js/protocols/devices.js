@@ -110,6 +110,20 @@ function sanitizeVidPidEntries(arr) {
     );
 }
 
+function mergeVidPidEntries(defaultEntries, remoteEntries) {
+    const merged = new Map();
+
+    for (const entry of defaultEntries) {
+        merged.set(`${entry.vendorId}:${entry.productId}`, entry);
+    }
+
+    for (const entry of remoteEntries) {
+        merged.set(`${entry.vendorId}:${entry.productId}`, entry);
+    }
+
+    return [...merged.values()];
+}
+
 function applyFilters(data) {
     if (Array.isArray(data?.bluetoothDevices)) {
         const sanitized = data.bluetoothDevices.filter((d) => isPlainObject(d) && typeof d.serviceUuid === "string");
@@ -117,11 +131,12 @@ function applyFilters(data) {
     }
     if (Array.isArray(data?.serialDevices)) {
         const sanitized = sanitizeVidPidEntries(data.serialDevices);
-        serialDevices.splice(0, serialDevices.length, ...sanitized);
+        const merged = mergeVidPidEntries(defaultSerialDevices, sanitized);
+        serialDevices.splice(0, serialDevices.length, ...merged);
         webSerialDevices.splice(
             0,
             webSerialDevices.length,
-            ...sanitized.map(({ vendorId, productId }) => ({
+            ...merged.map(({ vendorId, productId }) => ({
                 usbVendorId: vendorId,
                 usbProductId: productId,
             })),
@@ -129,12 +144,12 @@ function applyFilters(data) {
     }
     if (Array.isArray(data?.usbDevices?.filters)) {
         const sanitized = sanitizeVidPidEntries(data.usbDevices.filters);
-        usbDevices.filters.splice(0, usbDevices.filters.length, ...sanitized);
+        const merged = mergeVidPidEntries(defaultUsbFilters, sanitized);
+        usbDevices.filters.splice(0, usbDevices.filters.length, ...merged);
     }
     if (isPlainObject(data?.vendorIdNames)) {
-        for (const key of Object.keys(vendorIdNames)) {
-            delete vendorIdNames[key];
-        }
+        Object.assign(vendorIdNames, defaultVendorIdNames);
+
         for (const [key, value] of Object.entries(data.vendorIdNames)) {
             if (UNSAFE_KEYS.has(key) || typeof value !== "string") {
                 continue;

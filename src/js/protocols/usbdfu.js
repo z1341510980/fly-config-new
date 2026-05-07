@@ -147,6 +147,27 @@ export class UsbDfuProtocol extends EventTarget {
         return this.transport.getConnectedPort();
     }
 
+    combineFlashLayouts(chipInfo) {
+        if (typeof chipInfo.internal_flash !== "undefined" && typeof chipInfo.external_flash !== "undefined") {
+            return {
+                type: "Combined Flash",
+                start_address: chipInfo.internal_flash.start_address,
+                sectors: [...chipInfo.internal_flash.sectors, ...chipInfo.external_flash.sectors],
+                total_size: chipInfo.internal_flash.total_size + chipInfo.external_flash.total_size,
+            };
+        }
+
+        if (typeof chipInfo.internal_flash !== "undefined") {
+            return chipInfo.internal_flash;
+        }
+
+        if (typeof chipInfo.external_flash !== "undefined") {
+            return chipInfo.external_flash;
+        }
+
+        return null;
+    }
+
     async connect(devicePath, hex, options, callback) {
         if (this._connecting) {
             console.warn(`${this.logHead} Connect already in progress, ignoring duplicate call`);
@@ -648,27 +669,30 @@ export class UsbDfuProtocol extends EventTarget {
                     } else {
                         let nextAction;
 
-                        if (typeof chipInfo.internal_flash !== "undefined") {
-                            // internal flash
+                        const combinedFlashLayout = this.combineFlashLayouts(chipInfo);
+
+                        if (combinedFlashLayout && typeof chipInfo.internal_flash !== "undefined") {
+                            // Prefer internal-flash flow when option bytes exist, but
+                            // validate writable ranges against the full combined layout.
                             nextAction = 1;
 
                             this.chipInfo = chipInfo;
-                            this.flash_layout = chipInfo.internal_flash;
+                            this.flash_layout = combinedFlashLayout;
 
-                            if (this.hex.bytes_total > chipInfo.internal_flash.total_size) {
+                            if (this.hex.bytes_total > this.flash_layout.total_size) {
                                 const firmwareSize = this.hex.bytes_total;
-                                const boardSize = chipInfo.internal_flash.total_size;
+                                const boardSize = this.flash_layout.total_size;
                                 const bareBoard = this.bareBoard;
                                 console.log(
                                     `${this.logHead} Firmware size ${firmwareSize} exceeds board memory size ${boardSize} (${bareBoard})`,
                                 );
                             }
-                        } else if (typeof chipInfo.external_flash !== "undefined") {
+                        } else if (combinedFlashLayout) {
                             // external flash
                             nextAction = 2; // no option bytes
 
                             this.chipInfo = chipInfo;
-                            this.flash_layout = chipInfo.external_flash;
+                            this.flash_layout = combinedFlashLayout;
                         } else {
                             console.log(`${this.logHead} Failed to detect internal or external flash`);
                             this.cleanup();

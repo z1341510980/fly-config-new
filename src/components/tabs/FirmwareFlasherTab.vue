@@ -2153,6 +2153,11 @@ export default defineComponent({
                     disabled: state.loadFileButtonDisabled,
                     onSelect: handleLoadFile,
                 },
+                {
+                    label: $t("portsSelectPermissionDFU"),
+                    icon: "i-lucide-cpu",
+                    onSelect: () => PortHandler.requestDevicePermission("usb"),
+                },
             ],
         ]);
 
