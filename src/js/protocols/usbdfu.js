@@ -379,102 +379,116 @@ export class UsbDfuProtocol extends EventTarget {
             // Keep this for new MCU debugging
             // console.log('Descriptors: ' + descriptors);
             const parseDescriptor = (str) => {
-                // F303: "@Internal Flash  /0x08000000/128*0002Kg"
-                // F40x: "@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg"
-                // F72x: "@Internal Flash  /0x08000000/04*016Kg,01*64Kg,03*128Kg"
-                // F74x: "@Internal Flash  /0x08000000/04*032Kg,01*128Kg,03*256Kg"
-                // H750 SPRacing H7 EXST: "@External Flash /0x90000000/998*128Kg,1*128Kg,4*128Kg,21*128Ka"
-                // H750 SPRacing H7 EXST: "@External Flash /0x90000000/1001*128Kg,3*128Kg,20*128Ka" - Early BL firmware with incorrect string, treat as above.
-                // H750 Partitions: Flash, Config, Firmware, 1x BB Management block + x BB Replacement blocks)
-                // AT32 F437 "@Internal Flash   /0x08000000/08*04Ka,1000*04Kg"
-                if (str === "@External Flash /0x90000000/1001*128Kg,3*128Kg,20*128Ka") {
-                    str = "@External Flash /0x90000000/998*128Kg,1*128Kg,4*128Kg,21*128Ka";
-                }
-                //AT32F43xxM
-                if (str === "@Option byte   /0x1FFFC000/01*4096 g") {
-                    str = "@Option bytes   /0x1FFFC000/01*4096 g";
-                }
-                //AT32F43xxG
-                if (str === "@Option byte   /0x1FFFC000/01*512 g") {
-                    str = "@Option bytes   /0x1FFFC000/01*512 g";
-                }
-                // split main into [location, start_addr, sectors]
-                const tmp0 = str.replace(/[^\x20-\x7E]+/g, "");
-                const tmp1 = tmp0.split("/");
+                // Some bootloaders expose multiple memory regions in a single
+                // descriptor string, for example "@Internal Flash ... @External Flash ...".
+                // Split those into individual memory descriptors first.
+                const subDescriptors = str
+                    .split(/(?=@)/)
+                    .map((segment) => segment.trim())
+                    .filter((segment) => segment.length > 0);
 
-                // G474 (and may be other G4 variants) returns
-                // "@Option Bytes   /0x1FFF7800/01*048 e/0x1FFFF800/01*048 e"
-                // for two banks of options bytes which may be fine in terms of descriptor syntax,
-                // but as this splits into an array of size 5 instead of 3, it induces an length error.
-                // Here, we blindly trim the array length to 3. While doing so may fail to
-                // capture errornous patterns, but it is good to avoid this known and immediate
-                // error.
-                // May need to preserve the second bank if the configurator starts to really
-                // support option bytes.
-                if (tmp1.length > 3) {
-                    console.log(`${this.logHead} parseDescriptor: shrinking long descriptor "${str}"`);
-                    tmp1.length = 3;
-                }
+                return subDescriptors.flatMap((rawSegment) => {
+                    let segment = rawSegment;
 
-                if (!tmp1[0].startsWith("@")) {
-                    return null;
-                }
-
-                const type = tmp1[0].trim().replace("@", "");
-                const start_address = Number.parseInt(tmp1[1]);
-
-                // split sectors into array
-                const sectors = [];
-                let total_size = 0;
-                const tmp2 = tmp1[2].split(",");
-
-                if (tmp2.length < 1) {
-                    return null;
-                }
-
-                for (const tmp2Index of tmp2) {
-                    // split into [num_pages, page_size]
-                    const tmp3 = tmp2Index.split("*");
-                    if (tmp3.length !== 2) {
-                        return null;
+                    // F303: "@Internal Flash  /0x08000000/128*0002Kg"
+                    // F40x: "@Internal Flash  /0x08000000/04*016Kg,01*064Kg,07*128Kg"
+                    // F72x: "@Internal Flash  /0x08000000/04*016Kg,01*64Kg,03*128Kg"
+                    // F74x: "@Internal Flash  /0x08000000/04*032Kg,01*128Kg,03*256Kg"
+                    // H750 SPRacing H7 EXST: "@External Flash /0x90000000/998*128Kg,1*128Kg,4*128Kg,21*128Ka"
+                    // H750 SPRacing H7 EXST: "@External Flash /0x90000000/1001*128Kg,3*128Kg,20*128Ka" - Early BL firmware with incorrect string, treat as above.
+                    // H750 Partitions: Flash, Config, Firmware, 1x BB Management block + x BB Replacement blocks)
+                    // AT32 F437 "@Internal Flash   /0x08000000/08*04Ka,1000*04Kg"
+                    if (segment === "@External Flash /0x90000000/1001*128Kg,3*128Kg,20*128Ka") {
+                        segment = "@External Flash /0x90000000/998*128Kg,1*128Kg,4*128Kg,21*128Ka";
+                    }
+                    // AT32F43xxM
+                    if (segment === "@Option byte   /0x1FFFC000/01*4096 g") {
+                        segment = "@Option bytes   /0x1FFFC000/01*4096 g";
+                    }
+                    // AT32F43xxG
+                    if (segment === "@Option byte   /0x1FFFC000/01*512 g") {
+                        segment = "@Option bytes   /0x1FFFC000/01*512 g";
                     }
 
-                    const num_pages = Number.parseInt(tmp3[0]);
-                    let page_size = Number.parseInt(tmp3[1]);
+                    // split main into [location, start_addr, sectors]
+                    const tmp0 = segment.replace(/[^\x20-\x7E]+/g, "");
+                    const tmp1 = tmp0.split("/");
 
-                    if (!page_size) {
-                        return null;
+                    // G474 (and may be other G4 variants) returns
+                    // "@Option Bytes   /0x1FFF7800/01*048 e/0x1FFFF800/01*048 e"
+                    // for two banks of options bytes which may be fine in terms of descriptor syntax,
+                    // but as this splits into an array of size 5 instead of 3, it induces an length error.
+                    // Here, we blindly trim the array length to 3. While doing so may fail to
+                    // capture errornous patterns, but it is good to avoid this known and immediate
+                    // error.
+                    // May need to preserve the second bank if the configurator starts to really
+                    // support option bytes.
+                    if (tmp1.length > 3) {
+                        console.log(`${this.logHead} parseDescriptor: shrinking long descriptor "${segment}"`);
+                        tmp1.length = 3;
                     }
-                    const unit = tmp3[1].slice(-2, -1);
 
-                    switch (unit) {
-                        case "M":
-                        //  fall through to K as well
-                        case "K":
-                            page_size *= 1024;
-                            break;
+                    if (!tmp1[0]?.startsWith("@")) {
+                        return [];
                     }
 
-                    sectors.push({
-                        num_pages: num_pages,
-                        start_address: start_address + total_size,
-                        page_size: page_size,
-                        total_size: num_pages * page_size,
-                    });
+                    const type = tmp1[0].trim().replace("@", "");
+                    const start_address = Number.parseInt(tmp1[1]);
 
-                    total_size += num_pages * page_size;
-                }
+                    // split sectors into array
+                    const sectors = [];
+                    let total_size = 0;
+                    const tmp2 = tmp1[2]?.split(",");
 
-                const memory = {
-                    type: type,
-                    start_address: start_address,
-                    sectors: sectors,
-                    total_size: total_size,
-                };
-                return memory;
+                    if (!tmp2 || tmp2.length < 1) {
+                        return [];
+                    }
+
+                    for (const tmp2Index of tmp2) {
+                        // split into [num_pages, page_size]
+                        const tmp3 = tmp2Index.split("*");
+                        if (tmp3.length !== 2) {
+                            return [];
+                        }
+
+                        const num_pages = Number.parseInt(tmp3[0]);
+                        let page_size = Number.parseInt(tmp3[1]);
+
+                        if (!page_size) {
+                            return [];
+                        }
+                        const unit = tmp3[1].slice(-2, -1);
+
+                        switch (unit) {
+                            case "M":
+                            //  fall through to K as well
+                            case "K":
+                                page_size *= 1024;
+                                break;
+                        }
+
+                        sectors.push({
+                            num_pages: num_pages,
+                            start_address: start_address + total_size,
+                            page_size: page_size,
+                            total_size: num_pages * page_size,
+                        });
+
+                        total_size += num_pages * page_size;
+                    }
+
+                    return [
+                        {
+                            type: type,
+                            start_address: start_address,
+                            sectors: sectors,
+                            total_size: total_size,
+                        },
+                    ];
+                });
             };
-            const chipInfo = descriptors.map(parseDescriptor).reduce((o, v) => {
-                o[v.type.toLowerCase().replace(" ", "_")] = v;
+            const chipInfo = descriptors.flatMap(parseDescriptor).reduce((o, v) => {
+                o[v.type.toLowerCase().replace(/\s+/g, "_")] = v;
                 return o;
             }, {});
             callback(chipInfo, resultCode);
