@@ -86,6 +86,7 @@ function sensorTypesLegacy() {
                 "LSM6DSO",
                 "LSM6DSV16X",
                 "VIRTUAL",
+                "ICM42622P",
             ],
         },
         gyro: {
@@ -112,6 +113,7 @@ function sensorTypesLegacy() {
                 "LSM6DSO",
                 "LSM6DSV16X",
                 "VIRTUAL",
+                "ICM42622P",
             ],
         },
         baro: {

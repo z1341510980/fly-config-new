@@ -1,113 +1,435 @@
-![Betaflight](https://raw.githubusercontent.com/betaflight/.github/main/profile/images/bf_logo.svg#gh-light-mode-only)
-![Betaflight](https://raw.githubusercontent.com/betaflight/.github/main/profile/images/bf_logo_dark.svg#gh-dark-mode-only)
+# 使用文档
 
-# Betaflight App
+## 环境要求
 
-[![Latest version](https://img.shields.io/github/v/release/z1341510980/fly-config-new)](https://github.com/z1341510980/fly-config-new/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/z1341510980/fly-config-new/deploy.yml?branch=main)](https://github.com/z1341510980/fly-config-new/actions/workflows/deploy.yml)
-[![Crowdin](https://d322cqt584bo4o.cloudfront.net/betaflight-configurator/localized.svg)](https://crowdin.com/project/betaflight-configurator)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=betaflight_betaflight-configurator&metric=alert_status)](https://sonarcloud.io/dashboard?id=betaflight_betaflight-configurator)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Join us on Discord!](https://img.shields.io/discord/868013470023548938)](https://discord.gg/n4E6ak4u3c)
+### Node.js 版本
 
-Betaflight App is a Progressive Web Application for configuring and managing the Betaflight flight control system.
+项目要求使用 `.nvmrc` 文件中指定的 Node.js 版本。  就是node版本：24.12.0
 
-The current hosted release is available at [app.betaflight.com](https://app.betaflight.com). If you want to test the latest unstable snapshot, use [master.app.betaflight.com](https://master.app.betaflight.com).
+1. 查看项目要求的版本：
+   ```bash
+   cat .nvmrc
+   ```
 
-Various types of aircraft are supported by the tool and by Betaflight, including quadcopters, hexacopters, octocopters, and fixed-wing aircraft.
+2. 安装指定版本（推荐使用 nvm）：
+   ```bash
+   nvm install
+   nvm use
+   ```
 
-## Runtime Model
+   或手动安装：
+   ```bash
+   # 下载并安装 https://nodejs.org/
+   node --version  # 验证版本是否匹配
+   ```
 
-This repository now targets a browser-first frontend deployment only.
+### 浏览器要求
 
-- App runtime: PWA in a Chromium-class browser
-- Device transports: Web Serial, Web Bluetooth, WebUSB DFU, WebSocket, and virtual devices for testing
-- Local file access: browser File System Access APIs
+需要 Chromium 内核浏览器（Chrome、Chromium、Microsoft Edge 等），以支持完整的设备通信功能：
 
-There are no native desktop or Android packaging flows in this repository.
+| 功能 | 浏览器 API |
+|------|-----------|
+| 串口连接 | Web Serial |
+| 蓝牙连接 | Web Bluetooth |
+| DFU 刷写 | WebUSB |
+| 本地开发认证 | HTTPS + WebAuthn |
 
-## Browser Requirements
+## 安装步骤
 
-For full device support, use a Chromium-based browser such as Chrome, Chromium, or Microsoft Edge with the required web hardware APIs available.
+### 1. 安装依赖
 
-Some features require browser capabilities that are not universally available:
+```bash
+# 安装 Yarn 包管理器（如果尚未安装）
+npm install yarn -g
 
-- Web Serial for serial connection workflows
-- Web Bluetooth for Bluetooth connection workflows
-- WebUSB for DFU flashing workflows
-- HTTPS for WebAuthn features in local development
+# 安装项目依赖
+yarn install
+```
 
-## Development
+## 开发模式
 
-### Prepare your environment
+### 启动开发服务器
 
-1. Install [Node.js](https://nodejs.org/) and match the version in [.nvmrc](./.nvmrc)
-2. Install Yarn globally: `npm install yarn -g`
-3. Install project dependencies: `yarn install`
+```bash
+yarn dev
+```
 
-### Run the local development server
+启动后，Vite 会在终端输出访问地址：
 
-1. Run `yarn dev`
-2. Open the local URL shown by Vite
+- **无证书时：** `http://localhost:8088`
 
-If local certificates are present, the app runs over HTTPS at `https://local.betaflight.com:8443`. Otherwise it runs over HTTP at `http://localhost:8088`.
+在浏览器中打开对应地址即可访问应用。
 
-### Production build
+### 开发模式特点
 
-Run `yarn build`.
+- 热模块替换（HMR）：代码修改后自动刷新
+- 源码调试：支持断点调试和源码映射
+- 实时预览：修改立即生效
 
-To preview the production output locally, run `yarn preview` after the build completes.
+## 打包构建
 
-### Tests
+### 生产环境打包
 
-Run:
+```bash
+yarn build
+```
+
+构建完成后，输出文件位于 `dist/` 目录。
+
+### 预览构建结果
+
+```bash
+# 先执行构建
+yarn build
+
+# 预览生产版本
+yarn preview
+```
+
+预览命令会启动本地服务器，展示打包后的实际效果。
+
+## 部署方法
+
+### 方案一：静态资源部署（推荐）
+
+将 `dist/` 目录的所有文件部署到任意静态 Web 服务器：
+
+#### Nginx 配置示例
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    ssl_certificate /path/to/your/domain.crt;
+    ssl_certificate_key /path/to/your/domain.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    root /path/to/dist;
+    index index.html;
+
+    # PWA 支持：所有路由回退到 index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 静态资源缓存
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # service-worker 不缓存
+    location = /service-worker.js {
+        add_header Cache-Control "no-cache";
+    }
+}
+
+# HTTP 自动跳转 HTTPS
+server {
+    listen 80;
+    server_name your-domain.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+#### Apache 配置示例
+
+创建 `.htaccess` 文件：
+
+```apache
+# HTTP 重定向到 HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# SPA 路由回退
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\.html$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]
+
+# 静态资源缓存
+<FilesMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$">
+    Header set Cache-Control "max-age=31536000, public, immutable"
+</FilesMatch>
+```
+
+或在 Apache 虚拟主机配置中启用 SSL：
+
+```apache
+<VirtualHost *:443>
+    ServerName your-domain.com
+    
+    SSLEngine on
+    SSLCertificateFile /path/to/your/domain.crt
+    SSLCertificateKeyFile /path/to/your/domain.key
+    
+    DocumentRoot /path/to/dist
+    
+    <Directory /path/to/dist>
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+
+# HTTP 自动跳转 HTTPS
+<VirtualHost *:80>
+    ServerName your-domain.com
+    Redirect permanent / https://your-domain.com/
+</VirtualHost>
+```
+
+### 方案二：GitHub Pages 部署
+
+```bash
+# 安装 gh-pages
+yarn add -D gh-pages
+
+# 在 package.json 中添加脚本
+# "deploy": "gh-pages -d dist"
+
+# 构建并部署
+yarn build
+yarn deploy
+```
+
+### 方案三：Docker 部署
+
+创建 `Dockerfile`：
+
+```dockerfile
+FROM node:24-alpine AS builder
+WORKDIR /app
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile
+COPY . .
+RUN yarn build
+
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 443 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+创建 `nginx.conf`：
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    ssl_certificate /etc/nginx/ssl/domain.crt;
+    ssl_certificate_key /etc/nginx/ssl/domain.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /service-worker.js {
+        add_header Cache-Control "no-cache";
+    }
+}
+
+server {
+    listen 80;
+    server_name your-domain.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+构建和运行（挂载 SSL 证书）：
+
+```bash
+# 构建镜像
+docker build -t betaflight-app .
+
+# 运行容器（挂载 SSL 证书目录）
+docker run -p 443:443 -p 80:80 \
+  -v /path/to/your/ssl:/etc/nginx/ssl \
+  betaflight-app
+```
+
+或使用 Docker Compose：
+
+```yaml
+version: '3.8'
+services:
+  betaflight-app:
+    build: .
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./ssl:/etc/nginx/ssl
+    restart: always
+```
+
+```bash
+docker-compose up -d
+```
+
+### 方案三（备选）：Docker + Let's Encrypt 自动证书
+
+使用 `nginx-proxy` + `letsencrypt` 自动获取 HTTPS 证书：
+
+```yaml
+version: '3.8'
+services:
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - certs:/etc/nginx/certs
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+    restart: always
+
+  letsencrypt:
+    image: nginxproxy/acme-companion
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - certs:/etc/nginx/certs
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - acme:/etc/acme.sh
+    environment:
+      DEFAULT_EMAIL: your-email@example.com
+    depends_on:
+      - nginx-proxy
+    restart: always
+
+  betaflight-app:
+    build: .
+    environment:
+      VIRTUAL_HOST: your-domain.com
+      LETSENCRYPT_HOST: your-domain.com
+      LETSENCRYPT_EMAIL: your-email@example.com
+    volumes:
+      - ./nginx-http.conf:/etc/nginx/conf.d/default.conf
+    restart: always
+
+volumes:
+  certs:
+  vhost:
+  html:
+  acme:
+```
+
+```bash
+docker-compose up -d
+```
+
+### 方案四：对象存储部署（阿里云 OSS / 腾讯云 COS / AWS S3）
+
+> **注意：** 对象存储通常提供默认 HTTPS 域名，但自定义域名需要自行配置 SSL 证书或使用 CDN。
+
+1. 构建项目：`yarn build`
+2. 将 `dist/` 目录上传至对象存储桶
+3. 配置静态网站托管
+4. 设置 404 回退规则到 `index.html`（SPA 路由支持）
+5. **启用 HTTPS：**
+   - **阿里云 OSS：** 绑定自定义域名后，在 CDN 控制台开启 HTTPS 并上传证书
+   - **腾讯云 COS：** 在 CDN 域名管理中配置 HTTPS 证书
+   - **AWS S3 + CloudFront：** 在 CloudFront 分配中绑定 ACM 证书
+
+#### 阿里云 OSS + CDN 示例
+
+```bash
+# 1. 使用 ossutil 上传
+ossutil cp -r dist/ oss://your-bucket-name/
+
+# 2. 在阿里云 CDN 控制台：
+#    - 添加加速域名
+#    - 开启 HTTPS 安全加速
+#    - 上传 SSL 证书或使用免费证书
+#    - 配置 404 回退规则（通过函数计算或边缘脚本）
+```
+
+#### AWS S3 + CloudFront 示例
+
+```bash
+# 1. 上传到 S3
+aws s3 sync dist/ s3://your-bucket-name --delete
+
+# 2. 使用 ACM 申请免费 SSL 证书
+aws acm request-certificate \
+  --domain-name your-domain.com \
+  --validation-method DNS
+
+# 3. 创建 CloudFront 分配，绑定 ACM 证书
+#    - Origin: 选择 S3 桶
+#    - Viewer Protocol Policy: Redirect HTTP to HTTPS
+#    - Default Root Object: index.html
+#    - Custom Error Responses: 404 -> 200, 响应页面: /index.html
+```
+
+## 其他命令
+
+### 运行测试
 
 ```bash
 yarn test
 ```
 
-### Linting
-
-Run:
+### 代码检查
 
 ```bash
 yarn lint
 ```
 
-## Languages
+## 常见问题
 
-**Please do not submit pull requests for translation changes directly.**
+### 1. Node.js 版本不匹配
 
-Betaflight App is translated into several languages. The application attempts to use your system language when a translation is available. If you want to help improve translations, use [Crowdin](https://crowdin.com/project/betaflight-configurator).
+```bash
+# 使用 nvm 切换版本
+nvm install <version>  # 替换为 .nvmrc 中的版本
+nvm use <version>
+```
 
-If you prefer a different language inside the app, select it on the first screen or in the available settings.
+### 2. 依赖安装失败
 
-## Support and Community
+```bash
+# 清除缓存后重新安装
+yarn cache clean
+yarn install
+```
 
-Discord:
+### 3. 开发服务器无法启动
 
-<https://discord.gg/n4E6ak4u3c>
+- 检查端口 `8088` 是否被占用
+- 使用 `lsof -i :8088` (Linux/Mac) 或 `netstat -ano | findstr 8088` (Windows) 查看占用进程
 
-Facebook Group:
+### 4. 浏览器不支持 Web Serial
 
-<https://www.facebook.com/groups/betaflightgroup/>
+- 确保使用 Chromium 内核浏览器（Chrome 89+）
+- HTTPS 环境下才能使用（localhost 除外）
+- 在 `chrome://flags` 中启用相关实验性功能（如需要）
 
-Etiquette: don't ask to ask, and please wait around long enough for a reply. Sometimes people are flying, asleep, or at work and cannot answer immediately.
+## 技术栈
 
-## Issue Trackers
-
-Fly Config issues:
-
-<https://github.com/z1341510980/fly-config-new/issues>
-
-Betaflight Firmware issues:
-
-<https://github.com/betaflight/betaflight/issues>
-
-## Developers
-
-We accept clean and reasonable patches, submit them.
-
-## Credits
-
-For the full contribution history, see the [GitHub contributors page](https://github.com/z1341510980/fly-config-new/graphs/contributors).
+| 类型 | 技术 |
+|------|------|
+| 框架 | Vue 3 |
+| 构建工具 | Vite |
+| 包管理器 | Yarn |
+| 部署模式 | PWA（渐进式 Web 应用） |
+| 设备通信 | Web Serial / Web Bluetooth / WebUSB / WebSocket |
