@@ -67,7 +67,7 @@ const defaultSerialDevices = [
     { vendorId: 11836, productId: 22336 }, // AT32 VCP
     { vendorId: 12619, productId: 22336 }, // APM32 VCP
     { vendorId: 11914, productId: 9 }, // Raspberry Pi Pico VCP
-    { vendorId: 0x396a, productId: 0x1000 }, // MICU VCP
+    { vendorId: 0x396a, productId: 0x1000 }, // UMIC VCP
 ];
 
 const defaultUsbFilters = [
@@ -76,7 +76,7 @@ const defaultUsbFilters = [
     { vendorId: 11836, productId: 57105 }, // AT32F435 DFU Bootloader
     { vendorId: 12619, productId: 262 }, // APM32 DFU Bootloader
     { vendorId: 11914, productId: 15 }, // Raspberry Pi Pico in Bootloader mode
-    { vendorId: 0x396a, productId: 0xdf00 }, // MICU DFU Bootloader
+    { vendorId: 0x396a, productId: 0xdf00 }, // UMIC DFU Bootloader
 ];
 
 const defaultVendorIdNames = {
@@ -86,7 +86,7 @@ const defaultVendorIdNames = {
     11836: "AT32",
     12619: "Geehy Semiconductor",
     11914: "Raspberry Pi Pico",
-    0x396a: "MICU",
+    0x396a: "UMIC",
 };
 
 export const bluetoothDevices = [...defaultBluetoothDevices];
