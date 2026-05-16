@@ -15,7 +15,7 @@ describe("browser device adapters", () => {
         expect(serialDevices).toContainEqual({ vendorId: 0x396a, productId: 0x1000 });
         expect(webSerialDevices).toContainEqual({ usbVendorId: 0x396a, usbProductId: 0x1000 });
         expect(usbDevices.filters).toContainEqual({ vendorId: 0x396a, productId: 0xdf00 });
-        expect(vendorIdNames[0x396a]).toBe("MICU");
+        expect(vendorIdNames[0x396a]).toBe("UMIC");
     });
 
     it("merges remote device filters with browser defaults instead of dropping known DFU IDs", async () => {

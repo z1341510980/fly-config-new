@@ -129,9 +129,11 @@ export function useCloudBuild(params) {
         }
 
         try {
-            const firmware = await loadFirmwareWithRetry(response.url, response.file);
+            const firmwareUrl = response.url || `/api/builds/${response.key}/hex`;
+            const firmwareFile = response.file || `${response.key}.hex`;
+            const firmware = await loadFirmwareWithRetry(firmwareUrl, firmwareFile);
             if (firmware) {
-                processFile(firmware, response.file);
+                processFile(firmware, firmwareFile);
             }
         } catch (error) {
             console.error("[CLOUD_BUILD] Failed to load firmware:", error);
@@ -230,9 +232,11 @@ export function useCloudBuild(params) {
      */
     const downloadDirectFirmware = async (response) => {
         try {
-            const firmware = await loadFirmwareWithRetry(response.url, response.file);
+            const firmwareUrl = response.url || `/api/builds/${response.key}/hex`;
+            const firmwareFile = response.file || `${response.key}.hex`;
+            const firmware = await loadFirmwareWithRetry(firmwareUrl, firmwareFile);
             if (firmware) {
-                processFile(firmware, response.file);
+                processFile(firmware, firmwareFile);
             }
         } catch (error) {
             console.error("[CLOUD_BUILD] Failed to load firmware:", error);

@@ -6,7 +6,8 @@ import LoginApi from "./LoginApi";
 
 export default class BuildApi {
     constructor(loginApi = new LoginApi()) {
-        this._url = "https://build.betaflight.com";
+        // this._url = "https://build.betaflight.com";
+        this._url = "http://127.0.0.1:3300";
         this._cacheExpirationPeriod = 3600 * 1000;
         this._loginApi = loginApi;
     }
@@ -143,6 +144,10 @@ export default class BuildApi {
     }
 
     async loadTargetFirmware(path) {
+        if (!path || typeof path !== "string") {
+            gui_log(i18n.getMessage("buildServerFailure", ["loadTargetFirmware", "Invalid path"]));
+            return null;
+        }
         const url = `${this._url}${path}`;
         return await this.fetchBytes(url);
     }
