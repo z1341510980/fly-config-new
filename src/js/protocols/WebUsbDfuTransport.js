@@ -61,18 +61,35 @@ class WebUsbDfuTransport extends EventTarget {
 
     async getDevices() {
         const filters = usbDevices?.filters || [];
-        const ports = await navigator.usb.getDevices();
-        return ports
-            .filter((port) => filters.some((f) => port.vendorId === f.vendorId && port.productId === f.productId))
-            .map((port) => this.createPort(port));
+        if (!navigator?.usb) {
+            return [];
+        }
+        try {
+            const ports = await navigator.usb.getDevices();
+            return ports
+                .filter((port) => filters.some((f) => port.vendorId === f.vendorId && port.productId === f.productId))
+                .map((port) => this.createPort(port));
+        } catch (error) {
+            console.warn(`${this.logHead} Failed to enumerate USB devices:`, error);
+            return [];
+        }
     }
 
     async requestPermission() {
-        const userSelectedPort = await navigator.usb.requestDevice(usbDevices);
-        console.log(
-            `${this.logHead} WebUSB Version: ${userSelectedPort.deviceVersionMajor}.${userSelectedPort.deviceVersionMinor}.${userSelectedPort.deviceVersionSubminor}`,
-        );
-        return this.createPort(userSelectedPort);
+        if (!navigator?.usb) {
+            console.warn(`${this.logHead} WebUSB API not available`);
+            return null;
+        }
+        try {
+            const userSelectedPort = await navigator.usb.requestDevice(usbDevices);
+            console.log(
+                `${this.logHead} WebUSB Version: ${userSelectedPort.deviceVersionMajor}.${userSelectedPort.deviceVersionMinor}.${userSelectedPort.deviceVersionSubminor}`,
+            );
+            return this.createPort(userSelectedPort);
+        } catch (error) {
+            console.warn(`${this.logHead} Failed to request USB device permission:`, error);
+            return null;
+        }
     }
 
     async waitForDfuDevice(timeout = 10000, interval = 500) {

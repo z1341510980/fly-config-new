@@ -193,12 +193,12 @@ export class UsbDfuProtocol extends EventTarget {
             this.options.erase_chip = true;
         }
 
-        // Calculate progress weight based on whether erase is enabled
-        // If erase: 0-33% erase, 33-66% flash, 66-100% verify
-        // If no erase: 0-50% flash, 50-100% verify
+        // Both full-chip and local erase execute erase operations before flashing.
+        // Full-chip erase: 0-33% erase, 33-66% flash, 66-100% verify
+        // Local erase:     0-20% erase, 20-60% flash, 60-100% verify
         this.progressWeights = this.options.erase_chip
             ? { erase: [0, 33], flash: [33, 66], verify: [66, 100] }
-            : { erase: null, flash: [0, 50], verify: [50, 100] };
+            : { erase: [0, 20], flash: [20, 60], verify: [60, 100] };
 
         // reset and set some variables before we start
         this.upload_time_start = new Date().getTime();
@@ -242,17 +242,24 @@ export class UsbDfuProtocol extends EventTarget {
         this.options?.flashProgress?.(progress);
     }
 
-    openDevice() {
-        this.transport
-            .open(this.connectedDevice)
-            .then(() => {
-                this.claimInterface(0);
-            })
-            .catch((error) => {
-                console.log(`${this.logHead} Failed to open USB device:`, error);
-                gui_log(i18n.getMessage("usbDeviceOpenFail"));
-                this.cleanup();
-            });
+    async openDevice(retries = 3, delay = 1000) {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                await this.transport.open(this.connectedDevice);
+                console.log(`${this.logHead} USB Device opened`);
+                await this.claimInterface(0);
+                return;
+            } catch (error) {
+                console.warn(`${this.logHead} Failed to open USB device (${attempt}/${retries}):`, error);
+                if (attempt < retries) {
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                } else {
+                    console.log(`${this.logHead} Failed to open USB device after ${retries} attempts:`, error);
+                    gui_log(i18n.getMessage("usbDeviceOpenFail"));
+                    this.cleanup();
+                }
+            }
+        }
     }
 
     closeDevice() {
@@ -268,7 +275,7 @@ export class UsbDfuProtocol extends EventTarget {
             });
     }
 
-    async claimInterface(interfaceNumber, retries = 6, delay = 1000) {
+    async claimInterface(interfaceNumber, retries = 10, delay = 1500) {
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
                 await this.transport.claimInterface(interfaceNumber);
@@ -280,14 +287,13 @@ export class UsbDfuProtocol extends EventTarget {
                 }
                 return;
             } catch (error) {
-                const isBusy = error.message?.includes("Unable to claim interface") || error.message?.includes("busy");
-                if (isBusy && attempt < retries) {
+                if (attempt < retries) {
                     console.warn(
-                        `${this.logHead} Interface ${interfaceNumber} busy, retrying (${attempt}/${retries})...`,
+                        `${this.logHead} Claim interface ${interfaceNumber} failed, retrying (${attempt}/${retries}): ${error.message}`,
                     );
                     await new Promise((resolve) => setTimeout(resolve, delay));
                 } else {
-                    console.log(`${this.logHead} Failed to claim USB device`, error);
+                    console.log(`${this.logHead} Failed to claim USB device interface after ${retries} attempts:`, error);
                     this.cleanup();
                     return;
                 }
@@ -544,15 +550,15 @@ export class UsbDfuProtocol extends EventTarget {
                 })
                 .catch((error) => {
                     console.log(`${this.logHead} USB controlTransfer OUT failed for request: ${request} (${error})`);
-                    if (this._connecting) {
-                        this.cleanup();
-                    }
+                    callback(null, 1);
                 });
         }
     }
 
     // routine calling DFU_CLRSTATUS until device is in dfuIDLE state
-    clearStatus(callback) {
+    clearStatus(callback, maxRetries = 20) {
+        let retries = 0;
+
         const check_status = () => {
             this.controlTransfer("in", this.request.GETSTATUS, 0, 0, 6, 0, (data) => {
                 let delay = 0;
@@ -560,6 +566,11 @@ export class UsbDfuProtocol extends EventTarget {
                 if (data[4] === this.state.dfuIDLE) {
                     callback(data);
                 } else {
+                    if (++retries >= maxRetries) {
+                        console.log(`${this.logHead} clearStatus: max retries (${maxRetries}) reached, state: ${data[4]}`);
+                        this.cleanup();
+                        return;
+                    }
                     if (data.length) {
                         delay = data[1] | (data[2] << 8) | (data[3] << 16);
                     }
@@ -581,7 +592,13 @@ export class UsbDfuProtocol extends EventTarget {
             0,
             0,
             [0x21, address & 0xff, (address >> 8) & 0xff, (address >> 16) & 0xff, (address >> 24) & 0xff],
-            () => {
+            (result, errorCode) => {
+                if (errorCode) {
+                    console.log(`${this.logHead} Failed to send address load command`);
+                    gui_log(i18n.getMessage("usbDeviceOpenFail"));
+                    this.cleanup();
+                    return;
+                }
                 this.controlTransfer("in", this.request.GETSTATUS, 0, 0, 6, 0, (data) => {
                     if (data[4] === this.state.dfuDNBUSY) {
                         const delay = data[1] | (data[2] << 8) | (data[3] << 16);
@@ -591,8 +608,9 @@ export class UsbDfuProtocol extends EventTarget {
                                 if (data[4] === this.state.dfuDNLOAD_IDLE) {
                                     callback(data);
                                 } else {
-                                    console.log(`${this.logHead} Failed to execute address load`);
+                                    console.log(`${this.logHead} Failed to execute address load, state: ${data[4]}`);
                                     if (abort === undefined || abort) {
+                                        gui_log(i18n.getMessage("usbDeviceOpenFail"));
                                         this.cleanup();
                                     } else {
                                         callback(data);
@@ -601,7 +619,8 @@ export class UsbDfuProtocol extends EventTarget {
                             });
                         }, delay);
                     } else {
-                        console.log(`${this.logHead} Failed to request address load`);
+                        console.log(`${this.logHead} Failed to request address load, state: ${data?.[4]}`);
+                        gui_log(i18n.getMessage("usbDeviceOpenFail"));
                         this.cleanup();
                     }
                 });
@@ -949,11 +968,15 @@ export class UsbDfuProtocol extends EventTarget {
                 let total_erased = 0; // bytes
 
                 const erase_page_next = () => {
-                    // Calculate progress within erase phase (0-33%)
-                    const eraseStart = this.progressWeights.erase[0];
-                    const eraseRange = this.progressWeights.erase[1] - this.progressWeights.erase[0];
-                    const eraseProgress = ((page + 1) / erase_pages.length) * eraseRange;
-                    this.flashProgress(eraseStart + eraseProgress);
+                    // Calculate progress within erase phase.
+                    // Use defensive defaults if progressWeights.erase is somehow unset.
+                    const eraseWeights = this.progressWeights.erase;
+                    if (eraseWeights) {
+                        const eraseStart = eraseWeights[0];
+                        const eraseRange = eraseWeights[1] - eraseWeights[0];
+                        const eraseProgress = ((page + 1) / erase_pages.length) * eraseRange;
+                        this.flashProgress(eraseStart + eraseProgress);
+                    }
                     page++;
 
                     if (page === erase_pages.length) {
@@ -1054,7 +1077,6 @@ export class UsbDfuProtocol extends EventTarget {
             }
             case 4: {
                 // upload
-                // we dont need to clear the state as we are already using DFU_DNLOAD
                 console.log(`${this.logHead} Writing data ...`);
                 this.flashingMessage(i18n.getMessage("stm32Flashing"), this.options?.flashMessageTypes?.FLASHING);
 
@@ -1143,7 +1165,9 @@ export class UsbDfuProtocol extends EventTarget {
                 };
 
                 // start
-                this.loadAddress(address, write);
+                this.clearStatus(() => {
+                    this.loadAddress(address, write);
+                });
 
                 break;
             }
