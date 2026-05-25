@@ -107,8 +107,7 @@ export default class LoginApi {
                 console.error("Failed to obtain access token:", err);
             }
 
-            console.info("Unable to obtain valid access token, signing out user.");
-            await this.signOut();
+            console.info("Unable to obtain valid access token.");
             return false;
         }
         return false;
